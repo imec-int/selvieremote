@@ -1,0 +1,27 @@
+<html lang="en" xmlns:ng="http://angularjs.org" ng-app="selvieRemote">
+
+<head>
+	<title>[[.Title]]</title>
+</head>
+
+<body>
+	<h1>[[.Title]]</h1>
+
+	<div ng-controller="checkboxController">
+		<div>Check all
+			<input type="checkbox" ng-model="selectedAll" ng-click="checkAll()" />
+		</div>
+		<div ng-repeat="(key, value) in ConnectedPhones">
+			<div>{{value.client_id}}  {{value.device}}
+				<input type="checkbox" ng-model="value.Selected" ng-click="toggle(key)"/>
+			</div>
+		</div>
+	</div>
+	<script type="text/javascript">
+		connectedDevices = [[.Clients]];
+	</script>
+	<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/angularjs/1.3.14/angular.min.js"></script>
+	<script type="text/javascript" src="main.js"></script>
+</body>
+
+</html>
