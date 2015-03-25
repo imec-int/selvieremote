@@ -9,9 +9,7 @@
 				webSockets.send({toggleRecord: 1, client_id: "all"});
 			} else {
 				$scope.selectedAll = false;
-				for(var key in $scope.ConnectedPhones) {
-					webSockets.send({toggleRecord: 0, client_id: key});
-				}
+				webSockets.send({toggleRecord: 0, client_id: "all"});
 			}
 			angular.forEach($scope.ConnectedPhones, function (value, key) {
 				value.Selected = $scope.selectedAll;
@@ -20,6 +18,8 @@
 
 		$scope.toggle = function (key) {
 			if($scope.ConnectedPhones[key].Selected) {
+				// 1 and 0 values are actually useless; it's a simple toggle
+				// we don't keep track of the current recording status
 				webSockets.send({toggleRecord: 1, client_id: key});
 			} else {
 				webSockets.send({toggleRecord: 0, client_id: key});
