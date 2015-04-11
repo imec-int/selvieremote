@@ -81,7 +81,7 @@ func (h *hub) run() {
 		select {
 		case c := <-h.registerPhone:
 			h.phoneConnections[c] = true
-			// keep track of phonemapping upon registration message
+			// keep track of phonemapping upon clientMessage (registration)
 			// notification of admins also happens over there -> see readPump
 
 		case c := <-h.unregisterPhone:
@@ -95,7 +95,7 @@ func (h *hub) run() {
 					// broadcast to admins
 					// commented line below won't work since reads and writes on channel are blocking and select only executes 1
 					// h.broadcastToAdmin <- serverMessage{c.id, "ff", 0}
-					h.adminBroadcast(&serverMessage{c.id, c.deviceType, 0})
+					h.adminBroadcast(&serverMessage{ClientId: c.id, Device: c.deviceType, IsConnected: "0"})
 				}
 			}
 
@@ -122,26 +122,33 @@ func (h *hub) run() {
 
 // message types for json websocket communication
 
-// these implement the empty interface: interface{} -> type of connection.send channel
 // capitals since go only exports fields with capitals; otherwise json marshaling is not working
 // no spaces between json: and subsequent string, won't work then
-type registration struct {
-	CameraResolution string `json:"cameraResolution"`
+
+// incoming from client
+// use the following for both registration and status; cf in java :-p
+type clientMessage struct {
+	CameraResolution string `json:"cameraResolution,omitempty"`
 	ClientId         string `json:"client_id"`
-	Cpu              string `json:"cpu"`
-	Message          string `json:"message"`
-	UserAgent        string `json:"user-agent"`
+	Cpu              string `json:"cpu,omitempty"`
+	Message          string `json:"message,omitempty"`
+	UserAgent        string `json:"user-agent,omitempty"`
+	Status           string `json:"status,omitempty"`
 }
 
+// outgoing to client, incoming from admin
 type toggleRecord struct {
 	ToggleRecord int    `json:"toggleRecord"`
 	ClientId     string `json:"client_id"`
 }
 
+// outgoing to admin
+// also for connection as well as recording status
 type serverMessage struct {
 	ClientId    string `json:"client_id"`
-	Device      string `json:"device"`
-	IsConnected int    `json:"isConnected"`
+	Device      string `json:"device,omitempty"`
+	IsConnected string `json:"isConnected,omitempty"` //string since int 0 or bool false are also omitted
+	Status      string `json:"status,omitempty"`
 }
 
 // end of message types
@@ -171,18 +178,25 @@ func (c *connection) readPump() {
 
 	for {
 		if c.isPhone {
-			var message registration
+			var message clientMessage
 			if err := c.socket.ReadJSON(&message); err != nil {
 				break
 			}
-			// add clientId to connection and add to phoneMapping
-			c.id = message.ClientId
-			h.phoneMapping[c.id] = c
-			// broadcast this to admins
-			textArray := strings.Split(message.UserAgent, ";")
-			c.deviceType = textArray[len(textArray)-1]
-			var serverMesg = serverMessage{message.ClientId, c.deviceType, 1}
-			h.broadcastToAdmin <- &serverMesg
+			if message.Message == "device_registration" {
+				// add clientId to connection and add to phoneMapping
+				c.id = message.ClientId
+				h.phoneMapping[c.id] = c
+				// broadcast this to admins
+				textArray := strings.Split(message.UserAgent, ";")
+				c.deviceType = textArray[len(textArray)-1]
+				var serverMesg = serverMessage{ClientId: message.ClientId, Device: c.deviceType, IsConnected: "1"}
+				h.broadcastToAdmin <- &serverMesg
+
+				// else it is a status message
+			} else {
+				serverMesg := serverMessage{ClientId: message.ClientId, Status: message.Status}
+				h.broadcastToAdmin <- &serverMesg
+			}
 		} else {
 			var message toggleRecord
 			if err := c.socket.ReadJSON(&message); err != nil {
@@ -274,7 +288,7 @@ func serveAdmin(w http.ResponseWriter, r *http.Request) {
 		// get existing phone connections in proper form
 		var connectedPhones = make(map[string]*serverMessage)
 		for key, _ := range h.phoneConnections {
-			connectedPhones[key.id] = &serverMessage{key.id, key.deviceType, 1}
+			connectedPhones[key.id] = &serverMessage{ClientId: key.id, Device: key.deviceType, IsConnected: "1"}
 		}
 		// convert connectedPhones to json string to inject it in javascript
 		var connectedPhonesString string

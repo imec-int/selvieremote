@@ -14,6 +14,7 @@
 		<div ng-repeat="(key, value) in ConnectedPhones">
 			<div>{{value.client_id}}  {{value.device}}
 				<input type="checkbox" ng-model="value.Selected" ng-click="toggle(key)"/>
+				<span style="padding-left: 2em;">{{value.status}}</span>
 			</div>
 		</div>
 	</div>

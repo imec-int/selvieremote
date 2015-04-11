@@ -28,9 +28,15 @@
 		webSockets.onMessage(function(serverMessage) {
 			console.log(serverMessage);
 			var id =serverMessage.client_id;
-			if(serverMessage.isConnected) {
+			if(serverMessage.status) {
+				if($scope.ConnectedPhones[id]) {
+					$scope.ConnectedPhones[id].status = serverMessage.status;
+				}
+			}
+			else if(serverMessage.isConnected === "1") {
 				$scope.ConnectedPhones[id] = serverMessage;
-			} else {
+			}
+			else if(serverMessage.isConnected === "0") {
 				delete $scope.ConnectedPhones[id];
 			}
 		});
