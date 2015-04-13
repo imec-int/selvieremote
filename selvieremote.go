@@ -1,10 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -39,9 +39,9 @@ type hub struct {
 	registerAdmin     chan *connection
 	unregisterPhone   chan *connection
 	unregisterAdmin   chan *connection
-	sendToPhone       chan *toggleRecord
+	sendToPhone       chan *actionOnPhone
 	broadcastToAdmin  chan *serverMessage
-	broadcastToPhones chan *toggleRecord
+	broadcastToPhones chan *actionOnPhone
 }
 
 var h = hub{
@@ -53,18 +53,18 @@ var h = hub{
 	registerAdmin:     make(chan *connection),
 	unregisterPhone:   make(chan *connection),
 	unregisterAdmin:   make(chan *connection),
-	sendToPhone:       make(chan *toggleRecord),
+	sendToPhone:       make(chan *actionOnPhone),
 	broadcastToAdmin:  make(chan *serverMessage),
-	broadcastToPhones: make(chan *toggleRecord),
+	broadcastToPhones: make(chan *actionOnPhone),
 }
 
-func (h *hub) phoneSend(message *toggleRecord) {
+func (h *hub) phoneSend(message *actionOnPhone) {
 	if con, ok := h.phoneMapping[message.ClientId]; ok {
 		con.send <- message
 	}
 }
 
-func (h *hub) phoneBroadcast(message *toggleRecord) {
+func (h *hub) phoneBroadcast(message *actionOnPhone) {
 	for key, _ := range h.phoneConnections {
 		key.send <- message
 	}
@@ -137,8 +137,10 @@ type clientMessage struct {
 }
 
 // outgoing to client, incoming from admin
-type toggleRecord struct {
-	ToggleRecord int    `json:"toggleRecord"`
+type actionOnPhone struct {
+	ToggleRecord string `json:"toggleRecord,omitempty"`
+	WipeVideos   string `json:"wipeVideos,omitempty"`
+	PostLog      string `json:"postLog,omitempty"`
 	ClientId     string `json:"client_id"`
 }
 
@@ -198,7 +200,7 @@ func (c *connection) readPump() {
 				h.broadcastToAdmin <- &serverMesg
 			}
 		} else {
-			var message toggleRecord
+			var message actionOnPhone
 			if err := c.socket.ReadJSON(&message); err != nil {
 				break
 			}
@@ -302,16 +304,45 @@ func serveAdmin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func listenForInput() {
-	scanner := bufio.NewScanner(os.Stdin)
-	i := 1
-	for {
-		fmt.Print("enter text: ")
-		scanner.Scan()
-		// entered := scanner.Text()
-		h.broadcastToPhones <- &toggleRecord{ToggleRecord: i, ClientId: "all"}
-		i = 1 - i // toggle between zero and one
+func processLog(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		log.Println(r)
+		http.Error(w, "Method not allowed", 405)
+		return
 	}
+	file, _ /*header*/, err := r.FormFile("logfile")
+	if err != nil {
+		log.Println(err)
+		http.Error(w, "Bad Request: problem with logfile", 400)
+		return
+	}
+	defer file.Close()
+
+	clientId := r.FormValue("client_id")
+	if clientId == "" {
+		http.Error(w, "Bad Request: no client_id present", 400)
+		return
+	}
+	fileName := clientId + "_" + time.Now().Local().Format(time.StampMilli) + ".csv"
+	// -1 below: replace all occurrences
+	fileName = strings.Replace(fileName, ":", "", -1)
+	outFile, err := os.Create(fileName)
+	if err != nil {
+		log.Println("Problem creating file, check access, space")
+		http.Error(w, "Problem creating log file", 500)
+		return
+	}
+	defer outFile.Close()
+	// write from POST to outFile
+	_, err = io.Copy(outFile, file)
+	if err != nil {
+		log.Println("Problem storing file, check space")
+		http.Error(w, "Problem storing log file", 500)
+	}
+	log.Println("Successfully stored file " + outFile.Name())
+	h.broadcastToAdmin <- &serverMessage{ClientId: clientId, Status: "LOG"}
+	w.WriteHeader(200)
+
 }
 
 func main() {
@@ -326,8 +357,8 @@ func main() {
 	go h.run()
 	http.HandleFunc("/", wsHandler)
 	http.HandleFunc("/admin", serveAdmin)
+	http.HandleFunc("/log", processLog)
 	log.Printf("Running on port %d\n", *port)
-	go listenForInput()
 	address := fmt.Sprintf(":%d", *port)
 	err := http.ListenAndServe(address, nil)
 	fmt.Println(err.Error())
