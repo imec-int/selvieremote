@@ -342,6 +342,7 @@ func processLog(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println("Problem storing file, check space")
 		http.Error(w, "Problem storing log file", 500)
+		return
 	}
 	log.Println("Successfully stored file " + outFile.Name())
 	h.broadcastToAdmin <- &serverMessage{ClientId: clientId, Status: "LOG"}
