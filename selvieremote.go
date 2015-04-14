@@ -20,11 +20,15 @@ const (
 	// Time allowed to write a message to the peer.
 	writeWait = 10 * time.Second
 
+	// PING and PONG messages are only necessary to detect unintended closing of the socket;
+	// if the client closes the socket; we get a +/- immediate readerror on readjson -> we clean the connection
+	// but if e.g. connection drops or is closed by proxy, this will be detected via the ping-pong
+
 	// Time allowed to read the next pong message from the peer.
-	pongWait = 60 * time.Second
+	pongWait = 180 * time.Second
 
 	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = (pongWait * 9) / 10
+	pingPeriod = 90 * time.Second
 )
 
 var tmpl *template.Template
