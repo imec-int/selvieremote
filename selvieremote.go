@@ -21,7 +21,7 @@ const (
 	writeWait = 10 * time.Second
 
 	// PING and PONG messages are only necessary to detect unintended closing of the socket;
-	// if the client closes the socket; we get a +/- immediate readerror on readjson -> we clean the connection
+	// if the client closes the socket we get a +/- immediate readerror on readjson -> we clean the connection
 	// but if e.g. connection drops or is closed by proxy, this will be detected via the ping-pong
 
 	// Time allowed to read the next pong message from the peer.

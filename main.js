@@ -1,5 +1,5 @@
 (function(angular) {
-	angular.module('selvieRemote', ['websockets'])
+	angular.module('selvieRemote', ['websockets', 'ngAnimate'])
 	.controller('checkboxController', ['$scope', 'webSockets', function($scope, webSockets) {
 		$scope.ConnectedPhones = window.connectedDevices;
 		$scope.checkAll = function (action) {

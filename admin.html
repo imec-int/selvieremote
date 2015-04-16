@@ -7,6 +7,26 @@
 			padding-right: 20px;
 			padding-bottom: inherit;
 		}
+		.animation {
+		  -webkit-transition: 3s;
+		}
+
+		.animation.ng-enter {
+		  opacity: 0;
+		}
+
+		.animation.ng-leave {
+		  opacity: 1;
+		}
+
+		.animation.ng-enter.ng-enter-active {
+		  opacity: 1;
+		}
+
+		.animation.ng-leave.ng-leave-active {
+		  opacity: 0;
+		}
+
 	</style>
 </head>
 
@@ -33,7 +53,7 @@
 						<input type="checkbox" ng-model="wipeOnAll" ng-click="checkAll('wipe')" />
 					</td>
 				</tr>
-				<tr ng-repeat="(key, value) in ConnectedPhones">
+				<tr ng-repeat="(key, value) in ConnectedPhones" class="animation">
 					<td>{{value.client_id}} </td> <td> {{value.device}} </td>
 					<td>
 						<input type="checkbox" ng-model="value.Record" ng-click="check(key, 'record')"/>
@@ -52,7 +72,8 @@
 	<script type="text/javascript">
 		connectedDevices = [[.Clients]];
 	</script>
-	<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/angularjs/1.3.14/angular.min.js"></script>
+	<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/angularjs/1.3.15/angular.min.js"></script>
+	<script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/angularjs/1.3.15/angular-animate.min.js"></script>
 	<script type="text/javascript" src="main.js"></script>
 </body>
 
