@@ -37,7 +37,7 @@
 		<table>
 			<thead>
 				<tr>
-					<th>client id</th><th>device</th><th>toggle record</th><th> get log</th><th>erase</th><th>status</th>
+					<th>client id</th><th>device</th><th>toggle record</th><th> get log</th><th>erase</th><th>reconnect WiFi</th><th>status</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -52,6 +52,12 @@
 					<td>
 						<input type="checkbox" ng-model="wipeOnAll" ng-click="checkAll('wipe')" />
 					</td>
+					<td>
+						<select ng-model="globalIntervalValue" ng-options="interval.name for interval in intervals"
+						ng-change="globalIntervalChanged()">
+						</select>
+						<input type="checkbox" ng-model="reconnectOnAll" ng-click="checkAll('reconnect')" />
+					</td>
 				</tr>
 				<tr ng-repeat="(key, value) in ConnectedPhones" class="animation">
 					<td>{{value.client_id}} </td> <td> {{value.device}} </td>
@@ -63,6 +69,10 @@
 					</td>
 					<td>
 						<input type="checkbox" ng-model="value.Wipe" ng-click="check(key, 'wipe')"/>
+					</td>
+					<td>
+						<select ng-model="value.Interval" ng-options="interval.name for interval in intervals"/>
+						<input type="checkbox" ng-model="value.Reconnect" ng-click="check(key, 'reconnect')"/>
 					</td>
 					<td> {{value.status}} </td>
 				</tr>

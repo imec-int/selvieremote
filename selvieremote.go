@@ -145,6 +145,7 @@ type actionOnPhone struct {
 	ToggleRecord string `json:"toggleRecord,omitempty"`
 	WipeVideos   string `json:"wipeVideos,omitempty"`
 	PostLog      string `json:"postLog,omitempty"`
+	ReconnectIn  string `json:"reconnectIn,omitempty"`
 	ClientId     string `json:"client_id"`
 }
 
@@ -206,6 +207,7 @@ func (c *connection) readPump() {
 		} else {
 			var message actionOnPhone
 			if err := c.socket.ReadJSON(&message); err != nil {
+				log.Println(err)
 				break
 			}
 			// send to right client; if client_id = "all" broadcast to all phones
