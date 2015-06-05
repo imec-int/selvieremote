@@ -34,6 +34,11 @@
 	<h1>[[.Title]]</h1>
 
 	<div ng-controller="checkboxController">
+		<div>
+			<select ng-model="recordingDuration" ng-options="recduration.name for recduration in recDurations"></select>
+			<label><input type="checkbox" ng-model="limitDuration" />limit recording</label>
+		</div>
+		<br/>
 		<table>
 			<thead>
 				<tr>

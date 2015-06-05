@@ -16,6 +16,17 @@
 			{name: "5m", value: "300"},
 		];
 
+		$scope.recDurations = [
+			{name: "5s", value: "5"},
+			{name: "10s", value: "10"},
+			{name: "15s", value: "15"},
+			{name: "30s", value: "30"},
+			{name: "45s", value: "45"},
+			{name: "60s", value: "60"}
+		];
+		$scope.recordingDuration = $scope.recDurations[1];
+		$scope.limitDuration = true;
+
 		$scope.globalIntervalValue = $scope.intervals[0];
 		$scope.ConnectedPhones = window.connectedDevices;
 		angular.forEach($scope.ConnectedPhones, function (value, key) {
@@ -34,6 +45,15 @@
 					$scope.recordOnAll = true;
 					// ugly shortcut to toggle all phones; set client_id to "all"
 					webSockets.send({toggleRecord: "1", client_id: "all"});
+					if($scope.limitDuration) {
+						setTimeout(function() {
+							webSockets.send({toggleRecord: "0", client_id: "all"});
+							$scope.recordOnAll = false;
+							angular.forEach($scope.ConnectedPhones, function (value, key) {
+								value.Record = !value.Record;
+							});
+						}, $scope.recordingDuration.value * 1000);
+					}
 				} else {
 					$scope.recordOnAll = false;
 					webSockets.send({toggleRecord: "0", client_id: "all"});
@@ -86,6 +106,12 @@
 			if(action == "record") {
 				if($scope.ConnectedPhones[key].Record) {
 					webSockets.send({toggleRecord: "1", client_id: key});
+					if($scope.limitDuration) {
+						setTimeout(function() {
+							webSockets.send({toggleRecord: "0", client_id: key});
+							$scope.ConnectedPhones[key].Record = !$scope.ConnectedPhones[key].Record;
+						}, $scope.recordingDuration.value * 1000);
+					}
 				} else {
 					webSockets.send({toggleRecord: "0", client_id: key});
 				}
