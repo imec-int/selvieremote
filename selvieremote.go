@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -186,24 +187,39 @@ func (c *connection) readPump() {
 	for {
 		if c.isPhone {
 			var message clientMessage
-			if err := c.socket.ReadJSON(&message); err != nil {
+			messageType, byteArray, err := c.socket.ReadMessage()
+			if err != nil {
+				log.Println(err)
 				break
 			}
-			if message.Message == "device_registration" {
-				// add clientId to connection and add to phoneMapping
-				c.id = message.ClientId
-				h.phoneMapping[c.id] = c
-				// broadcast this to admins
-				textArray := strings.Split(message.UserAgent, ";")
-				c.deviceType = textArray[len(textArray)-1]
-				var serverMesg = serverMessage{ClientId: message.ClientId, Device: c.deviceType, IsConnected: "1"}
-				h.broadcastToAdmin <- &serverMesg
-
-				// else it is a status message
+			if messageType == websocket.BinaryMessage {
+				fileName := c.id + "_" + time.Now().Local().Format(time.StampMilli) + ".jpeg"
+				// -1 below: replace all occurrences
+				fileName = strings.Replace(fileName, ":", "", -1)
+				ioutil.WriteFile(fileName, byteArray, 0644)
 			} else {
-				serverMesg := serverMessage{ClientId: message.ClientId, Status: message.Status}
-				h.broadcastToAdmin <- &serverMesg
+				// it's text and more specifically JSON
+				if err := json.Unmarshal(byteArray, &message); err != nil {
+					log.Println(err)
+					break
+				}
+				if message.Message == "device_registration" {
+					// add clientId to connection and add to phoneMapping
+					c.id = message.ClientId
+					h.phoneMapping[c.id] = c
+					// broadcast this to admins
+					textArray := strings.Split(message.UserAgent, ";")
+					c.deviceType = textArray[len(textArray)-1]
+					var serverMesg = serverMessage{ClientId: message.ClientId, Device: c.deviceType, IsConnected: "1"}
+					h.broadcastToAdmin <- &serverMesg
+
+					// else it is a status message
+				} else {
+					serverMesg := serverMessage{ClientId: message.ClientId, Status: message.Status}
+					h.broadcastToAdmin <- &serverMesg
+				}
 			}
+
 		} else {
 			var message actionOnPhone
 			if err := c.socket.ReadJSON(&message); err != nil {
