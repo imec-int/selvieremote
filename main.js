@@ -147,6 +147,10 @@
 			if(serverMessage.status) {
 				if($scope.ConnectedPhones[id]) {
 					$scope.ConnectedPhones[id].status = serverMessage.status;
+					if(serverMessage.previewImage)
+						$scope.ConnectedPhones[id].previewImage = serverMessage.previewImage;
+					if(serverMessage.bytesTransferred)
+						$scope.ConnectedPhones[id].bytesTransferred = serverMessage.bytesTransferred;
 					if(serverMessage.status == "DEL") {
 						$scope.ConnectedPhones[id].Wipe = false;
 					}

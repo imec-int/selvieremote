@@ -139,6 +139,7 @@ type clientMessage struct {
 	Message          string `json:"message,omitempty"`
 	UserAgent        string `json:"user-agent,omitempty"`
 	Status           string `json:"status,omitempty"`
+	BytesTransferred uint32 `json:"bytesTransferred,omitempty"`
 }
 
 // outgoing to client, incoming from admin
@@ -153,10 +154,12 @@ type actionOnPhone struct {
 // outgoing to admin
 // also for connection as well as recording status
 type serverMessage struct {
-	ClientId    string `json:"client_id"`
-	Device      string `json:"device,omitempty"`
-	IsConnected string `json:"isConnected,omitempty"` //string since int 0 or bool false are also omitted
-	Status      string `json:"status,omitempty"`
+	ClientId         string `json:"client_id"`
+	Device           string `json:"device,omitempty"`
+	IsConnected      string `json:"isConnected,omitempty"` //string since int 0 or bool false are also omitted
+	Status           string `json:"status,omitempty"`
+	BytesTransferred uint32 `json:"bytesTransferred,omitempty"`
+	PreviewImage     string `json:"previewImage,omitempty"`
 }
 
 // end of message types
@@ -197,6 +200,8 @@ func (c *connection) readPump() {
 				// -1 below: replace all occurrences
 				fileName = strings.Replace(fileName, ":", "", -1)
 				ioutil.WriteFile(fileName, byteArray, 0644)
+				servMesg := serverMessage{ClientId: c.id, Status: "PREV", PreviewImage: fileName}
+				h.broadcastToAdmin <- &servMesg
 			} else {
 				// it's text and more specifically JSON
 				if err := json.Unmarshal(byteArray, &message); err != nil {
@@ -215,7 +220,7 @@ func (c *connection) readPump() {
 
 					// else it is a status message
 				} else {
-					serverMesg := serverMessage{ClientId: message.ClientId, Status: message.Status}
+					serverMesg := serverMessage{ClientId: message.ClientId, Status: message.Status, BytesTransferred: message.BytesTransferred}
 					h.broadcastToAdmin <- &serverMesg
 				}
 			}

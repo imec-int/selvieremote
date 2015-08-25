@@ -42,7 +42,7 @@
 		<table>
 			<thead>
 				<tr>
-					<th>client id</th><th>device</th><th>toggle record</th><th> get log</th><th>erase</th><th>reconnect WiFi</th><th>status</th>
+					<th>client id</th><th>device</th><th>toggle record</th><th> get log</th><th>erase</th><th>reconnect WiFi</th><th>status</th><th>transferring</th><th>image</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -80,6 +80,8 @@
 						<input type="checkbox" ng-model="value.Reconnect" ng-click="check(key, 'reconnect')"/>
 					</td>
 					<td> {{value.status}} </td>
+					<td> {{value.bytesTransferred}} </td>
+					<td> <img src={{value.previewImage}} style="height:60px;image-orientation:from-image;"/> </td>
 				</tr>
 			</tbody>
 		</table>
