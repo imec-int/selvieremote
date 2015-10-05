@@ -149,6 +149,10 @@
 					$scope.ConnectedPhones[id].status = serverMessage.status;
 					if(serverMessage.previewImage)
 						$scope.ConnectedPhones[id].previewImage = serverMessage.previewImage;
+					if(serverMessage.orientation)
+						$scope.ConnectedPhones[id].orientation = serverMessage.orientation;
+					else if(serverMessage.previewImage)
+						$scope.ConnectedPhones[id].orientation = 0
 					if(serverMessage.bytesTransferred)
 						$scope.ConnectedPhones[id].bytesTransferred = serverMessage.bytesTransferred;
 					if(serverMessage.status == "DEL") {

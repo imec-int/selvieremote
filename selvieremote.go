@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/rwcarlsen/goexif/exif"
 )
 
 // see gorilla websocket chat example on github
@@ -156,10 +156,11 @@ type actionOnPhone struct {
 type serverMessage struct {
 	ClientId         string `json:"client_id"`
 	Device           string `json:"device,omitempty"`
-	IsConnected      string `json:"isConnected,omitempty"` //string since int 0 or bool false are also omitted
+	IsConnected      string `json:"isConnected,omitempty"` //string since int 0 or bool false are also omitted -> solution: use pointers
 	Status           string `json:"status,omitempty"`
 	BytesTransferred uint32 `json:"bytesTransferred,omitempty"`
 	PreviewImage     string `json:"previewImage,omitempty"`
+	Orientation      int16  `json:"orientation,omitempty"`
 }
 
 // end of message types
@@ -195,12 +196,39 @@ func (c *connection) readPump() {
 				log.Println(err)
 				break
 			}
-			if messageType == websocket.BinaryMessage {
+			if messageType == websocket.BinaryMessage { // only binary thing we send over the socket is the jpeg
 				fileName := c.id + "_" + time.Now().Local().Format(time.StampMilli) + ".jpeg"
 				// -1 below: replace all occurrences
 				fileName = strings.Replace(fileName, ":", "", -1)
-				ioutil.WriteFile(fileName, byteArray, 0644)
-				servMesg := serverMessage{ClientId: c.id, Status: "PREV", PreviewImage: fileName}
+				f, err := os.Create(fileName)
+				if err != nil {
+					log.Println(err)
+					break
+				}
+				defer f.Close()
+				f.Write(byteArray)
+				f.Seek(0, 0) // offset 0 according to beginning of file (0) -> back to beginning of file for exif decode
+				ex, err := exif.Decode(f)
+				if err != nil {
+					log.Println("error exif" + err.Error())
+					break
+				}
+				orientation, err := ex.Get(exif.Orientation)
+				var orientationValue int16
+				if err == nil {
+					orient, _ := orientation.Int(0)
+					switch { // convert exif value to required rotation
+					case orient == 3:
+						orientationValue = 180
+					case orient == 6:
+						orientationValue = 90
+					case orient == 8:
+						orientationValue = -90
+					}
+				} else {
+					log.Println(err)
+				}
+				servMesg := serverMessage{ClientId: c.id, Status: "PREV", PreviewImage: fileName, Orientation: orientationValue}
 				h.broadcastToAdmin <- &servMesg
 			} else {
 				// it's text and more specifically JSON

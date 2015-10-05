@@ -81,7 +81,7 @@
 					</td>
 					<td> {{value.status}} </td>
 					<td> {{value.bytesTransferred}} </td>
-					<td> <img src={{value.previewImage}} style="height:60px;image-orientation:from-image;"/> </td>
+					<td> <img src={{value.previewImage}} ng-style="{'max-height':'60px', 'max-width':'60px', 'transform': 'rotate(' + value.orientation + 'deg)'}"/> </td>
 				</tr>
 			</tbody>
 		</table>
