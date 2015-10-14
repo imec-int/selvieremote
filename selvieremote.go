@@ -199,8 +199,8 @@ func (c *connection) readPump() {
 			if messageType == websocket.BinaryMessage { // only binary thing we send over the socket is the jpeg
 				fileName := c.id + "_" + time.Now().Local().Format(time.StampMilli) + ".jpeg"
 				// -1 below: replace all occurrences
-				fileName = strings.Replace(fileName, ":", "", -1)
-				f, err := os.Create(fileName)
+				fileName = "data/" + strings.Replace(fileName, ":", "", -1)
+				f, err := os.Create("public/" + fileName)
 				if err != nil {
 					log.Println(err)
 					break
@@ -236,6 +236,7 @@ func (c *connection) readPump() {
 					log.Println(err)
 					break
 				}
+
 				if message.Message == "device_registration" {
 					// add clientId to connection and add to phoneMapping
 					c.id = message.ClientId
@@ -256,9 +257,14 @@ func (c *connection) readPump() {
 		} else {
 			var message actionOnPhone
 			if err := c.socket.ReadJSON(&message); err != nil {
-				log.Println(err)
+				if err.Error() == "EOF" {
+					log.Println("Websocket broke")
+				} else {
+					log.Println(err)
+				}
 				break
 			}
+
 			// send to right client; if client_id = "all" broadcast to all phones
 			if message.ClientId == "all" {
 				h.broadcastToPhones <- &message
@@ -281,6 +287,7 @@ func (c *connection) writePump() {
 			if !ok {
 				return
 			}
+
 			if err := c.socket.WriteJSON(message); err != nil {
 				log.Println(err)
 				return
@@ -299,48 +306,23 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-func wsHandler(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		// match static files
-		http.ServeFile(w, r, r.URL.Path[1:])
-		// 404's are returned by serveFile
-		// http.Error(w, "Not found", 404)
-		return
-	}
+func httpHandler(w http.ResponseWriter, r *http.Request) {
 
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println(err)
-		return
+	if r.Header.Get("Upgrade") == "" {
+		// NON socket requests:
+		handleRegularHTTP(w, r)
+
+	} else {
+		// SOCKET requests:
+		handleSocketHTTP(w, r)
 	}
-	log.Println("Upgraded connection")
-	c := &connection{socket: conn, isPhone: true, send: make(chan interface{})}
-	h.registerPhone <- c
-	go c.writePump()
-	c.readPump()
 }
 
-func serveAdmin(w http.ResponseWriter, r *http.Request) {
-	// both http and websocket upgrade are gets
-	if r.Method != "GET" {
-		log.Println(r)
-		http.Error(w, "Method not allowed", 405)
-		return
-	}
-	// upgrade for websockets
-	if r.Header.Get("Upgrade") != "" {
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil { //not the upgrade request but regular http??
-			log.Println(err)
-			return
-		}
-		log.Println("Upgraded connection")
-		c := &connection{socket: conn, isPhone: false, send: make(chan interface{})}
-		h.registerAdmin <- c
-		go c.writePump()
-		c.readPump()
-		// else: no upgrade header: simply serve page
-	} else {
+func handleRegularHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Println(r.Method + " " + r.URL.Path)
+
+	// GET /admin:
+	if r.Method == "GET" && r.URL.Path == "/admin" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		// get existing phone connections in proper form
 		var connectedPhones = make(map[string]*serverMessage)
@@ -356,49 +338,88 @@ func serveAdmin(w http.ResponseWriter, r *http.Request) {
 			Title   string
 			Clients string
 		}{"Selvie Remote", connectedPhonesString})
+		return
+	}
+
+	// POST /log
+	if r.Method == "POST" && r.URL.Path == "/log" {
+		file, _ /*header*/, err := r.FormFile("logfile")
+		if err != nil {
+			log.Println(err)
+			http.Error(w, "Bad Request: problem with logfile", 400)
+			return
+		}
+		defer file.Close()
+
+		clientId := r.FormValue("client_id")
+		if clientId == "" {
+			http.Error(w, "Bad Request: no client_id present", 400)
+			return
+		}
+		fileName := "data/" + clientId + "_" + time.Now().Local().Format(time.StampMilli) + ".csv"
+		// -1 below: replace all occurrences
+		fileName = strings.Replace(fileName, ":", "", -1)
+		outFile, err := os.Create("public/" + fileName)
+		if err != nil {
+			log.Println("Problem creating file, check access, space")
+			http.Error(w, "Problem creating log file", 500)
+			return
+		}
+		defer outFile.Close()
+		// write from POST to outFile
+		_, err = io.Copy(outFile, file)
+		if err != nil {
+			log.Println("Problem storing file, check space")
+			http.Error(w, "Problem storing log file", 500)
+			return
+		}
+		log.Println("Successfully stored file " + outFile.Name())
+		h.broadcastToAdmin <- &serverMessage{ClientId: clientId, Status: "LOG"}
+		w.WriteHeader(200)
+	}
+
+	// GET [other static files]:
+	if r.Method == "GET" {
+		// match static files
+		http.ServeFile(w, r, "public/"+r.URL.Path[1:])
+		// 404's are returned by serveFile
+		// http.Error(w, "Not found", 404)
+		return
 	}
 }
 
-func processLog(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		log.Println(r)
-		http.Error(w, "Method not allowed", 405)
-		return
-	}
-	file, _ /*header*/, err := r.FormFile("logfile")
-	if err != nil {
-		log.Println(err)
-		http.Error(w, "Bad Request: problem with logfile", 400)
-		return
-	}
-	defer file.Close()
+func handleSocketHTTP(w http.ResponseWriter, r *http.Request) {
+	log.Println("Incoming websocket via " + r.Method + " " + r.URL.Path)
 
-	clientId := r.FormValue("client_id")
-	if clientId == "" {
-		http.Error(w, "Bad Request: no client_id present", 400)
-		return
-	}
-	fileName := clientId + "_" + time.Now().Local().Format(time.StampMilli) + ".csv"
-	// -1 below: replace all occurrences
-	fileName = strings.Replace(fileName, ":", "", -1)
-	outFile, err := os.Create(fileName)
-	if err != nil {
-		log.Println("Problem creating file, check access, space")
-		http.Error(w, "Problem creating log file", 500)
-		return
-	}
-	defer outFile.Close()
-	// write from POST to outFile
-	_, err = io.Copy(outFile, file)
-	if err != nil {
-		log.Println("Problem storing file, check space")
-		http.Error(w, "Problem storing log file", 500)
-		return
-	}
-	log.Println("Successfully stored file " + outFile.Name())
-	h.broadcastToAdmin <- &serverMessage{ClientId: clientId, Status: "LOG"}
-	w.WriteHeader(200)
+	// Socket request via GET /:
+	if r.Method == "GET" && r.URL.Path == "/" {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Println(err)
+			return
+		}
 
+		log.Println("Established websocket connection with phone")
+		c := &connection{socket: conn, isPhone: true, send: make(chan interface{})}
+		h.registerPhone <- c
+		go c.writePump()
+		c.readPump()
+	}
+
+	// Socket request via GET /admin:
+	if r.Method == "GET" && r.URL.Path == "/admin" {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil { //not the upgrade request but regular http?
+			log.Println(err)
+			return
+		}
+		log.Println("Established websocket connection with admin interface")
+		c := &connection{socket: conn, isPhone: false, send: make(chan interface{})}
+		h.registerAdmin <- c
+		go c.writePump()
+		c.readPump()
+		return
+	}
 }
 
 func main() {
@@ -409,11 +430,11 @@ func main() {
 	// change delimiters so we don't interfere with js templates
 	temp := template.New("admin.html")
 	temp.Delims("[[", "]]")
-	tmpl, _ = temp.ParseFiles("admin.html")
+	tmpl, _ = temp.ParseFiles("public/admin.html")
 	go h.run()
-	http.HandleFunc("/", wsHandler)
-	http.HandleFunc("/admin", serveAdmin)
-	http.HandleFunc("/log", processLog)
+	http.HandleFunc("/", httpHandler)
+	// http.HandleFunc("/admin", serveAdmin)
+	// http.HandleFunc("/log", processLog)
 	log.Printf("Running on port %d\n", *port)
 	address := fmt.Sprintf(":%d", *port)
 	err := http.ListenAndServe(address, nil)
