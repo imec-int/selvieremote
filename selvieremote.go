@@ -321,6 +321,14 @@ func httpHandler(w http.ResponseWriter, r *http.Request) {
 func handleRegularHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.Method + " " + r.URL.Path)
 
+	// GET /:
+	if r.Method == "GET" && r.URL.Path == "/" {
+		log.Println("Redirecting to /admin")
+		w.Header().Set("Location", "/admin")
+		w.WriteHeader(301)
+		return
+	}
+
 	// GET /admin:
 	if r.Method == "GET" && r.URL.Path == "/admin" {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
